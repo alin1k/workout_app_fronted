@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext.jsx';
 import { fmtRelative } from '../lib/format.js';
 import Icon from '../components/Icon.jsx';
@@ -16,8 +17,11 @@ function summarize(workout, typeById) {
   return { exCount, setCount, muscles: [...muscles] };
 }
 
-function WorkoutsList({ onOpen, onNew }) {
-  const { workouts, typeById } = useApp();
+function WorkoutsList() {
+  const { workouts, typeById, openSheet } = useApp();
+  const navigate = useNavigate();
+  const onOpen = (id) => navigate(`/workouts/${id}`);
+  const onNew = () => openSheet({ kind: 'newWorkout' });
 
   const sorted = useMemo(
     () => [...workouts].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)),

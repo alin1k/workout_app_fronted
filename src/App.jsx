@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { AppProvider, useApp } from './context/AppContext.jsx';
 import StageBackdrop from './components/StageBackdrop.jsx';
 import Toast from './components/Toast.jsx';
@@ -8,9 +8,7 @@ import WorkoutDetail from './screens/WorkoutDetail.jsx';
 import WorkoutForm from './sheets/WorkoutForm.jsx';
 import ExercisePicker from './sheets/ExercisePicker.jsx';
 
-function Shell() {
-  // Temporary local navigation — replaced by react-router in Phase 8.
-  const [activeId, setActiveId] = useState(null);
+function GlobalOverlays() {
   const {
     workouts,
     types,
@@ -19,53 +17,31 @@ function Shell() {
     sheet,
     closeConfirm,
     closeSheet,
-    openSheet,
     createWorkout,
     saveWorkout,
     addExercise,
     createType,
   } = useApp();
+  const navigate = useNavigate();
 
-  const activeWorkout = activeId ? workouts.find((w) => w.id === activeId) : null;
-
-  // If the active workout disappears (deleted), return to the list.
-  useEffect(() => {
-    if (activeId != null && !workouts.find((w) => w.id === activeId)) {
-      setActiveId(null);
-    }
-  }, [activeId, workouts]);
+  const editingWorkout =
+    sheet?.kind === 'editWorkout' ? workouts.find((w) => w.id === sheet.workoutId) : null;
 
   return (
     <>
-      {activeId == null ? (
-        <WorkoutsList
-          onOpen={(id) => setActiveId(id)}
-          onNew={() => openSheet({ kind: 'newWorkout' })}
-        />
-      ) : (
-        activeWorkout && (
-          <WorkoutDetail
-            workoutId={activeId}
-            onBack={() => setActiveId(null)}
-            onEdit={() => openSheet({ kind: 'editWorkout', workoutId: activeId })}
-            onAddExercise={() => openSheet({ kind: 'addExercise', workoutId: activeId })}
-          />
-        )
-      )}
-
       {sheet?.kind === 'newWorkout' && (
         <WorkoutForm
           onSave={(data) => {
             const id = createWorkout(data);
-            setActiveId(id);
+            navigate(`/workouts/${id}`);
           }}
           onClose={closeSheet}
         />
       )}
-      {sheet?.kind === 'editWorkout' && activeWorkout && (
+      {sheet?.kind === 'editWorkout' && editingWorkout && (
         <WorkoutForm
-          initial={activeWorkout}
-          onSave={(data) => saveWorkout(activeWorkout.id, data)}
+          initial={editingWorkout}
+          onSave={(data) => saveWorkout(editingWorkout.id, data)}
           onClose={closeSheet}
         />
       )}
@@ -90,8 +66,13 @@ function App() {
       <div className="stage">
         <StageBackdrop />
         <div className="app-root">
-          <Shell />
+          <Routes>
+            <Route path="/" element={<WorkoutsList />} />
+            <Route path="/workouts/:id" element={<WorkoutDetail />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
         </div>
+        <GlobalOverlays />
       </div>
     </AppProvider>
   );

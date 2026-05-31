@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import { useApp } from '../context/AppContext.jsx';
 import { fmtRelative, fmtTime } from '../lib/format.js';
 import Icon from '../components/Icon.jsx';
@@ -7,10 +8,13 @@ import IconButton from '../components/IconButton.jsx';
 import AppBar from '../components/AppBar.jsx';
 import ExerciseCard from './ExerciseCard.jsx';
 
-function WorkoutDetail({ workoutId, onBack, onEdit, onAddExercise }) {
+function WorkoutDetail() {
+  const { id } = useParams();
+  const navigate = useNavigate();
   const {
     workouts,
     typeById,
+    openSheet,
     addSet,
     removeSet,
     updateSet,
@@ -19,10 +23,17 @@ function WorkoutDetail({ workoutId, onBack, onEdit, onAddExercise }) {
     askRemoveExercise,
   } = useApp();
 
-  const workout = workouts.find((w) => w.id === workoutId);
+  const workout = workouts.find((w) => w.id === id);
+  const exists = !!workout;
 
   const [activeEx, setActiveEx] = useState(null);
 
+  // Bounce home if the workout vanishes (e.g. just deleted).
+  useEffect(() => {
+    if (!exists) navigate('/', { replace: true });
+  }, [exists, navigate]);
+
+  // Keep the active exercise pinned to the most recently-added one.
   useEffect(() => {
     if (!workout) return;
     const ex = workout.exercises;
@@ -36,24 +47,12 @@ function WorkoutDetail({ workoutId, onBack, onEdit, onAddExercise }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [workout?.exercises.length, workout?.id]);
 
-  if (!workout) {
-    return (
-      <>
-        <AppBar onBack={onBack} title="Not found" />
-        <div className="scroll">
-          <div className="page">
-            <p className="muted">This workout no longer exists.</p>
-            <Button variant="soft" onClick={onBack}>Back to list</Button>
-          </div>
-        </div>
-      </>
-    );
-  }
+  if (!workout) return null;
 
   return (
     <>
       <AppBar
-        onBack={onBack}
+        onBack={() => navigate('/')}
         subtitle={
           fmtRelative(workout.performedAt || workout.createdAt) +
           (workout.performedAt ? ' · ' + fmtTime(workout.performedAt) : '')
@@ -61,7 +60,12 @@ function WorkoutDetail({ workoutId, onBack, onEdit, onAddExercise }) {
         title={workout.name}
         right={
           <div className="row" style={{ gap: 0 }}>
-            <IconButton name="pencil" size={19} label="Edit workout" onClick={onEdit} />
+            <IconButton
+              name="pencil"
+              size={19}
+              label="Edit workout"
+              onClick={() => openSheet({ kind: 'editWorkout', workoutId: workout.id })}
+            />
             <IconButton
               name="trash"
               size={19}
@@ -134,7 +138,11 @@ function WorkoutDetail({ workoutId, onBack, onEdit, onAddExercise }) {
         </div>
       </div>
       <div className="dock">
-        <Button size="lg" className="btn-block" onClick={onAddExercise}>
+        <Button
+          size="lg"
+          className="btn-block"
+          onClick={() => openSheet({ kind: 'addExercise', workoutId: workout.id })}
+        >
           <Icon name="plus" size={20} /> Add exercise
         </Button>
       </div>
