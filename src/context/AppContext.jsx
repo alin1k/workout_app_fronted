@@ -1,17 +1,19 @@
-import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
-import { SEED_TYPES, SEED_WORKOUTS } from '../data/seed.js';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { api } from '../lib/api.js';
 
 const AppContext = createContext(null);
 
-// Local integer id generator. Starts past the seed range so newly-created
-// items can't collide with seed ids. Temporary — Task 3 deletes seed.js and
-// makes the backend the id authority.
-let _nextId = 1000;
+// Local integer id generator for items the frontend mints before the server
+// does (currently: every create, until Tasks 6–9 swap each one to a network
+// call). Starts high so it can't collide with server-assigned ids.
+let _nextId = 100000;
 const nextId = () => _nextId++;
 
 export function AppProvider({ children }) {
-  const [types, setTypes] = useState(SEED_TYPES);
-  const [workouts, setWorkouts] = useState(SEED_WORKOUTS);
+  const [types, setTypes] = useState([]);
+  const [workouts, setWorkouts] = useState([]);
+  const [workoutsStatus, setWorkoutsStatus] = useState('loading');
+  const [workoutsError, setWorkoutsError] = useState(null);
   const [sheet, setSheet] = useState(null);
   const [confirm, setConfirm] = useState(null);
   const [toast, setToast] = useState(null);
@@ -29,6 +31,25 @@ export function AppProvider({ children }) {
   };
   useEffect(() => () => clearTimeout(toastTimer.current), []);
 
+  // ---------- workouts list fetch ----------
+  const fetchWorkouts = useCallback(async () => {
+    setWorkoutsStatus('loading');
+    setWorkoutsError(null);
+    const { data, error } = await api.get('/api/workouts');
+    if (error) {
+      setWorkoutsError(error);
+      setWorkoutsStatus('error');
+      return;
+    }
+    setWorkouts(data || []);
+    setWorkoutsStatus('ready');
+  }, []);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    fetchWorkouts();
+  }, [fetchWorkouts]);
+
   // ---------- sheet / confirm ----------
   const openSheet = (s) => setSheet(s);
   const closeSheet = () => setSheet(null);
@@ -39,28 +60,54 @@ export function AppProvider({ children }) {
   const patchWorkout = (id, fn) =>
     setWorkouts((ws) => ws.map((w) => (w.id === id ? fn(w) : w)));
 
-  const createWorkout = (data) => {
-    const w = {
-      id: nextId(),
-      ...data,
-      created_at: new Date().toISOString(),
-      exercises: [],
+  // POST /api/workouts → 201 with the created workout (no count fields).
+  // On error, leaves the sheet open and returns { error } so the form can
+  // render the message inline.
+  const createWorkout = async (data) => {
+    const { data: created, error } = await api.post('/api/workouts', data);
+    if (error) return { error };
+    // Backend POST response doesn't include count fields; attach zeros so the
+    // list state shape stays consistent with what GET /api/workouts returns
+    // (Task 12 reads these for the card summary).
+    const shallow = {
+      ...created,
+      exercise_count: 0,
+      set_count: 0,
+      muscle_groups: [],
     };
-    setWorkouts((ws) => [w, ...ws]);
+    setWorkouts((ws) => [shallow, ...ws]);
     setSheet(null);
     flash('Workout started', 'check');
-    return w.id;
+    return { id: created.id };
   };
 
-  const saveWorkout = (id, data) => {
-    patchWorkout(id, (w) => ({ ...w, ...data }));
+  // PUT /api/workouts/<id> → 200 with the full nested tree. For the list we
+  // only patch the editable fields, preserving the counts already there.
+  // Detail-page state (Task 5) will own the full tree.
+  const saveWorkout = async (id, data) => {
+    const { data: updated, error } = await api.put(`/api/workouts/${id}`, data);
+    if (error) return { error };
+    patchWorkout(id, (w) => ({
+      ...w,
+      name: updated.name,
+      performed_at: updated.performed_at,
+      notes: updated.notes,
+    }));
     setSheet(null);
     flash('Saved', 'check');
+    return { error: null };
   };
 
-  const deleteWorkout = (id) => {
-    setWorkouts((ws) => ws.filter((w) => w.id !== id));
+  // DELETE /api/workouts/<id> → 204. 404 is treated as success (it's gone
+  // either way). Other errors leave the workout in state and flash an alert.
+  const deleteWorkout = async (id) => {
+    const { error } = await api.del(`/api/workouts/${id}`);
     setConfirm(null);
+    if (error && error.status !== 404) {
+      flash(error.message || 'Could not delete workout', 'alert');
+      return;
+    }
+    setWorkouts((ws) => ws.filter((w) => w.id !== id));
     flash('Workout deleted', 'trash');
   };
 
@@ -149,8 +196,8 @@ export function AppProvider({ children }) {
 
   // ---------- confirm builders ----------
   const askDeleteWorkout = (w) => {
-    const ex = w.exercises.length;
-    const st = w.exercises.reduce((n, e) => n + e.sets.length, 0);
+    const ex = w.exercise_count ?? w.exercises?.length ?? 0;
+    const st = w.set_count ?? w.exercises?.reduce((n, e) => n + e.sets.length, 0) ?? 0;
     setConfirm({
       icon: 'trash',
       tone: 'danger',
@@ -186,6 +233,8 @@ export function AppProvider({ children }) {
   const value = {
     // data
     workouts,
+    workoutsStatus,
+    workoutsError,
     types,
     typeById,
     // ui state
@@ -198,6 +247,8 @@ export function AppProvider({ children }) {
     closeSheet,
     openConfirm,
     closeConfirm,
+    // data actions
+    fetchWorkouts,
     // workout actions
     createWorkout,
     saveWorkout,

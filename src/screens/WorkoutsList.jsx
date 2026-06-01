@@ -4,27 +4,16 @@ import { fmtRelative } from '../lib/format.js';
 import Icon from '../components/Icon.jsx';
 import Button from '../components/Button.jsx';
 
-// Reads from the embedded `exercise_type` object so it works on both seed
-// data (denormalized) and the backend's GET /api/workouts/<id> response.
-function summarize(workout) {
-  const exCount = workout.exercises.length;
-  let setCount = 0;
-  const muscles = new Set();
-  workout.exercises.forEach((ex) => {
-    setCount += ex.sets.length;
-    const m = ex.exercise_type?.muscle_group;
-    if (m) muscles.add(m);
-  });
-  return { exCount, setCount, muscles: [...muscles] };
-}
-
 function WorkoutsList() {
-  const { workouts, openSheet } = useApp();
+  const { workouts, workoutsStatus, workoutsError, fetchWorkouts, openSheet } = useApp();
   const navigate = useNavigate();
   const onOpen = (id) => navigate(`/workouts/${id}`);
   const onNew = () => openSheet({ kind: 'newWorkout' });
 
-  // Server returns workouts in created_at desc order; do not re-sort here.
+  // Show the skeleton only on the first load, not on background refetches.
+  const isInitialLoading = workoutsStatus === 'loading' && workouts.length === 0;
+  const isError = workoutsStatus === 'error';
+  const isEmpty = workoutsStatus === 'ready' && workouts.length === 0;
 
   return (
     <>
@@ -57,7 +46,39 @@ function WorkoutsList() {
 
       <div className="scroll">
         <div className="page">
-          {workouts.length === 0 ? (
+          {isInitialLoading ? (
+            <div className="col gap12" aria-busy="true" aria-label="Loading workouts">
+              {[0, 1, 2].map((i) => (
+                <div key={i} className="wcard skeleton" />
+              ))}
+            </div>
+          ) : isError ? (
+            <div className="empty fade-in" style={{ marginTop: 40 }}>
+              <div
+                style={{
+                  width: 76,
+                  height: 76,
+                  borderRadius: 999,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  background: 'var(--accent-soft)',
+                  color: 'var(--primary-deep)',
+                }}
+              >
+                <Icon name="alert" size={32} stroke={1.7} />
+              </div>
+              <div>
+                <div className="display-lg" style={{ marginBottom: 6 }}>Couldn’t load workouts</div>
+                <div className="muted" style={{ fontSize: 14.5, lineHeight: 1.55, maxWidth: 280 }}>
+                  {workoutsError?.message || 'Try again in a moment.'}
+                </div>
+              </div>
+              <Button size="lg" onClick={fetchWorkouts} style={{ marginTop: 4 }}>
+                <Icon name="repeat" size={18} /> Retry
+              </Button>
+            </div>
+          ) : isEmpty ? (
             <div className="empty fade-in" style={{ marginTop: 40 }}>
               <div
                 style={{
@@ -93,9 +114,13 @@ function WorkoutsList() {
               </div>
               <div className="col gap12">
                 {workouts.map((w) => {
-                  const s = summarize(w);
                   const when = new Date(w.performed_at || w.created_at);
                   const isToday = fmtRelative(w.performed_at || w.created_at) === 'Today';
+                  // Counts come from the shallow GET /api/workouts response;
+                  // freshly-created entries get zeros from createWorkout.
+                  const exCount = w.exercise_count ?? 0;
+                  const setCount = w.set_count ?? 0;
+                  const muscles = w.muscle_groups ?? [];
                   return (
                     <button key={w.id} className="wcard fade-in" onClick={() => onOpen(w.id)}>
                       <span className={'wcard-date' + (isToday ? ' is-today' : '')}>
@@ -111,20 +136,20 @@ function WorkoutsList() {
                         <span className="wcard-title">{w.name}</span>
                         <span className="wcard-meta">
                           <span>
-                            <b>{s.exCount}</b> exercise{s.exCount !== 1 ? 's' : ''}
+                            <b>{exCount}</b> exercise{exCount !== 1 ? 's' : ''}
                           </span>
                           <span className="wcard-dot" />
                           <span>
-                            <b>{s.setCount}</b> set{s.setCount !== 1 ? 's' : ''}
+                            <b>{setCount}</b> set{setCount !== 1 ? 's' : ''}
                           </span>
                         </span>
-                        {s.muscles.length > 0 && (
+                        {muscles.length > 0 && (
                           <span className="wcard-tags">
-                            {s.muscles.slice(0, 3).map((m) => (
+                            {muscles.slice(0, 3).map((m) => (
                               <span key={m} className="wcard-tag">{m}</span>
                             ))}
-                            {s.muscles.length > 3 && (
-                              <span className="wcard-tag">+{s.muscles.length - 3}</span>
+                            {muscles.length > 3 && (
+                              <span className="wcard-tag">+{muscles.length - 3}</span>
                             )}
                           </span>
                         )}
@@ -141,7 +166,7 @@ function WorkoutsList() {
         </div>
       </div>
 
-      {workouts.length > 0 && (
+      {workoutsStatus === 'ready' && workouts.length > 0 && (
         <div className="dock">
           <Button size="lg" className="btn-block" onClick={onNew}>
             <Icon name="plus" size={20} /> New workout

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { MUSCLE_GROUPS } from '../data/seed.js';
+import { MUSCLE_GROUPS } from '../lib/constants.js';
 import Icon from '../components/Icon.jsx';
 import Button from '../components/Button.jsx';
 import Field from '../components/Field.jsx';

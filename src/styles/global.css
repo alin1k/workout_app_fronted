@@ -284,6 +284,14 @@ h1, h2, h3, .display { font-family: var(--font-display); margin: 0; letter-spaci
 }
 @keyframes toast-in { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: translateY(0); } }
 
+/* skeleton placeholder — Task 11 will add the shimmer animation. */
+.skeleton {
+  background: var(--surface-alt);
+  border-color: transparent !important;
+  min-height: 74px;
+  pointer-events: none;
+}
+
 /* scrollbar */
 .scroll::-webkit-scrollbar, .sheet-body::-webkit-scrollbar { width: 8px; }
 .scroll::-webkit-scrollbar-thumb, .sheet-body::-webkit-scrollbar-thumb { background: var(--border); border-radius: 8px; }

@@ -31,9 +31,11 @@ function GlobalOverlays() {
     <>
       {sheet?.kind === 'newWorkout' && (
         <WorkoutForm
-          onSave={(data) => {
-            const id = createWorkout(data);
-            navigate(`/workouts/${id}`);
+          onSave={async (data) => {
+            const result = await createWorkout(data);
+            if (result.error) return result;
+            navigate(`/workouts/${result.id}`);
+            return result;
           }}
           onClose={closeSheet}
         />
