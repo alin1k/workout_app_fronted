@@ -3,12 +3,6 @@ import { api } from '../lib/api.js';
 
 const AppContext = createContext(null);
 
-// Local integer id generator for items the frontend mints before the server
-// does (currently: addSet, until Task 9 swaps it to a network call). Starts
-// high so it can't collide with server-assigned ids.
-let _nextId = 100000;
-const nextId = () => _nextId++;
-
 // Temp ids for optimistic mutations awaiting their server response. Always
 // negative so they can't collide with real (positive-integer) backend ids;
 // callers swap the temp entry for the server response on success, or remove
@@ -371,45 +365,197 @@ export function AppProvider({ children }) {
       return { ...w, exercises: arr };
     });
 
-  // ---------- set mutations (in-memory; Task 9 wires to backend) ----------
-  const addSet = (_workoutId, exId, set) =>
-    patchCurrentWorkout((w) => ({
-      ...w,
-      exercises: w.exercises.map((e) =>
-        e.id === exId
-          ? {
-              ...e,
-              sets: [
-                ...e.sets,
-                {
-                  id: nextId(),
-                  exercise_id: exId,
-                  set_number: e.sets.length + 1,
-                  ...set,
-                },
-              ],
-            }
-          : e
-      ),
+  // ---------- set mutations (optimistic) ----------
+  // POST /api/exercises/<id>/sets. Inserts a temp-id set locally first,
+  // bumps the list set_count, then fires the POST. Swaps the temp entry
+  // for the server response on success; rolls back on failure.
+  // Special case: if the parent exercise is still temp (addExercise hasn't
+  // settled yet), keep the set local-only — the rare set logged in that
+  // window won't survive a page refresh, which is the documented interim.
+  const addSet = async (_workoutId, exId, set) => {
+    const w = currentWorkout;
+    if (!w) return { error: null };
+    const wId = w.id;
+    const exercise = w.exercises.find((e) => e.id === exId);
+    if (!exercise) return { error: null };
+
+    // max(set_number) + 1 — handles gaps from prior deletes correctly.
+    const setNumber = exercise.sets.length === 0
+      ? 1
+      : Math.max(...exercise.sets.map((s) => s.set_number)) + 1;
+    const tid = tempId();
+    const tempSet = {
+      id: tid,
+      exercise_id: exId,
+      set_number: setNumber,
+      reps: set.reps,
+      weight: set.weight ?? null,
+    };
+
+    setCurrentWorkout((cw) => {
+      if (!cw || cw.id !== wId) return cw;
+      return {
+        ...cw,
+        exercises: cw.exercises.map((e) =>
+          e.id === exId ? { ...e, sets: [...e.sets, tempSet] } : e
+        ),
+      };
+    });
+    patchWorkoutInList(wId, (entry) => ({
+      ...entry,
+      set_count: (entry.set_count ?? 0) + 1,
     }));
 
-  const removeSet = (_workoutId, exId, setId) =>
-    patchCurrentWorkout((w) => ({
-      ...w,
-      exercises: w.exercises.map((e) =>
-        e.id === exId ? { ...e, sets: e.sets.filter((s) => s.id !== setId) } : e
-      ),
+    // Parent exercise hasn't been persisted yet — bail before POSTing.
+    if (exId < 0) return { set: tempSet };
+
+    // Omit weight when null — the backend treats null on POST as
+    // out-of-spec; for PUT it's documented as "clears it".
+    const body = { reps: set.reps };
+    if (set.weight != null) body.weight = set.weight;
+    const { data: created, error } = await api.post(
+      `/api/exercises/${exId}/sets`,
+      body
+    );
+
+    if (error) {
+      setCurrentWorkout((cw) => {
+        if (!cw || cw.id !== wId) return cw;
+        return {
+          ...cw,
+          exercises: cw.exercises.map((e) =>
+            e.id === exId ? { ...e, sets: e.sets.filter((s) => s.id !== tid) } : e
+          ),
+        };
+      });
+      patchWorkoutInList(wId, (entry) => ({
+        ...entry,
+        set_count: Math.max(0, (entry.set_count ?? 1) - 1),
+      }));
+      flash('Could not log set', 'alert');
+      return { error };
+    }
+
+    // Swap the temp entry for the server response.
+    setCurrentWorkout((cw) => {
+      if (!cw || cw.id !== wId) return cw;
+      return {
+        ...cw,
+        exercises: cw.exercises.map((e) =>
+          e.id === exId ? { ...e, sets: e.sets.map((s) => (s.id === tid ? created : s)) } : e
+        ),
+      };
+    });
+    return { set: created };
+  };
+
+  // DELETE /api/sets/<id>. Snapshot + optimistic remove + list decrement,
+  // rollback on non-404 error.
+  const removeSet = async (_workoutId, exId, setId) => {
+    const w = currentWorkout;
+    if (!w) return { error: null };
+    const wId = w.id;
+    const exercise = w.exercises.find((e) => e.id === exId);
+    if (!exercise) return { error: null };
+    const setIdx = exercise.sets.findIndex((s) => s.id === setId);
+    if (setIdx === -1) return { error: null };
+    const snapshot = exercise.sets[setIdx];
+
+    setCurrentWorkout((cw) => {
+      if (!cw || cw.id !== wId) return cw;
+      return {
+        ...cw,
+        exercises: cw.exercises.map((e) =>
+          e.id === exId ? { ...e, sets: e.sets.filter((s) => s.id !== setId) } : e
+        ),
+      };
+    });
+    patchWorkoutInList(wId, (entry) => ({
+      ...entry,
+      set_count: Math.max(0, (entry.set_count ?? 1) - 1),
     }));
 
-  const updateSet = (_workoutId, exId, setId, set) =>
-    patchCurrentWorkout((w) => ({
-      ...w,
-      exercises: w.exercises.map((e) =>
-        e.id === exId
-          ? { ...e, sets: e.sets.map((s) => (s.id === setId ? { ...s, ...set } : s)) }
-          : e
-      ),
-    }));
+    // Temp set or temp parent: never persisted.
+    if (setId < 0 || exId < 0) return { error: null };
+
+    const { error } = await api.del(`/api/sets/${setId}`);
+
+    if (error && error.status !== 404) {
+      setCurrentWorkout((cw) => {
+        if (!cw || cw.id !== wId) return cw;
+        return {
+          ...cw,
+          exercises: cw.exercises.map((e) => {
+            if (e.id !== exId) return e;
+            const next = [...e.sets];
+            next.splice(setIdx, 0, snapshot);
+            return { ...e, sets: next };
+          }),
+        };
+      });
+      patchWorkoutInList(wId, (entry) => ({
+        ...entry,
+        set_count: (entry.set_count ?? 0) + 1,
+      }));
+      flash('Could not delete set', 'alert');
+      return { error };
+    }
+
+    return { error: null };
+  };
+
+  // PUT /api/sets/<id>. Optimistic patch in place. The api.updateSet helper
+  // swallows the "no fields to update" 400 as a silent success (locked UX:
+  // submitting an empty edit closes the form quietly). On any other error
+  // we roll back. Field errors are bubbled up to the caller so the edit
+  // row can render them inline; non-field errors get an alert toast.
+  const updateSet = async (_workoutId, exId, setId, patch) => {
+    const w = currentWorkout;
+    if (!w) return { error: null };
+    const wId = w.id;
+    const exercise = w.exercises.find((e) => e.id === exId);
+    if (!exercise) return { error: null };
+    const snapshot = exercise.sets.find((s) => s.id === setId);
+    if (!snapshot) return { error: null };
+
+    setCurrentWorkout((cw) => {
+      if (!cw || cw.id !== wId) return cw;
+      return {
+        ...cw,
+        exercises: cw.exercises.map((e) =>
+          e.id === exId
+            ? { ...e, sets: e.sets.map((s) => (s.id === setId ? { ...s, ...patch } : s)) }
+            : e
+        ),
+      };
+    });
+
+    // Temp set or temp parent: local-only.
+    if (setId < 0 || exId < 0) return { error: null };
+
+    const result = await api.updateSet(setId, patch);
+
+    // noop (swallowed 400) or success (200 with no error).
+    if (result.noop || !result.error) return { error: null };
+
+    // Rollback the optimistic patch.
+    setCurrentWorkout((cw) => {
+      if (!cw || cw.id !== wId) return cw;
+      return {
+        ...cw,
+        exercises: cw.exercises.map((e) =>
+          e.id === exId
+            ? { ...e, sets: e.sets.map((s) => (s.id === setId ? snapshot : s)) }
+            : e
+        ),
+      };
+    });
+
+    if (!result.error.field) {
+      flash('Could not save set', 'alert');
+    }
+    return { error: result.error };
+  };
 
   // ---------- catalog mutations ----------
   // POST /api/exercise-types → 201 (returns the created type).

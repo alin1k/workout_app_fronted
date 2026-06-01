@@ -27,6 +27,7 @@ function ExerciseCard({
   const [editId, setEditId] = useState(null);
   const [eReps, setEReps] = useState(0);
   const [eWeight, setEWeight] = useState(null);
+  const [editErrors, setEditErrors] = useState({});
 
   // keep composer prefilled with the latest set's values
   useEffect(() => {
@@ -48,12 +49,27 @@ function ExerciseCard({
     setEditId(s.id);
     setEReps(s.reps);
     setEWeight(s.weight);
+    setEditErrors({});
   };
-  const saveEdit = () => {
-    if (eReps >= 1) {
-      onUpdateSet(editId, { reps: eReps, weight: eWeight });
-      setEditId(null);
+  const cancelEdit = () => {
+    setEditId(null);
+    setEditErrors({});
+  };
+  const saveEdit = async () => {
+    if (eReps < 1) {
+      setEditErrors({ reps: 'Reps must be at least 1.' });
+      return;
     }
+    setEditErrors({});
+    const result = await onUpdateSet(editId, { reps: eReps, weight: eWeight });
+    if (result?.error?.field) {
+      // Keep the edit row open and surface the field error inline.
+      setEditErrors({ [result.error.field]: result.error.message });
+      return;
+    }
+    // Success, noop, or non-field error (the context has already toasted).
+    setEditId(null);
+    setEditErrors({});
   };
 
   return (
@@ -143,10 +159,15 @@ function ExerciseCard({
                   key={s.id}
                   style={{ padding: '10px 11px', display: 'flex', flexDirection: 'column', gap: 10 }}
                 >
-                  <div className="row gap8" style={{ alignItems: 'flex-end' }}>
+                  <div className="row gap8" style={{ alignItems: 'flex-start' }}>
                     <div className="num-field">
                       <span className="label" style={{ fontSize: 10 }}>Reps</span>
                       <Stepper value={eReps} onChange={setEReps} min={1} />
+                      {editErrors.reps && (
+                        <div className="err" style={{ fontSize: 11, marginTop: 4 }}>
+                          <Icon name="alert" size={12} /> {editErrors.reps}
+                        </div>
+                      )}
                     </div>
                     <div className="num-field">
                       <span className="label" style={{ fontSize: 10 }}>Weight</span>
@@ -158,10 +179,15 @@ function ExerciseCard({
                         allowEmpty
                         placeholder="BW"
                       />
+                      {editErrors.weight && (
+                        <div className="err" style={{ fontSize: 11, marginTop: 4 }}>
+                          <Icon name="alert" size={12} /> {editErrors.weight}
+                        </div>
+                      )}
                     </div>
                   </div>
                   <div className="row gap8">
-                    <Button variant="soft" className="btn-block" onClick={() => setEditId(null)}>
+                    <Button variant="soft" className="btn-block" onClick={cancelEdit}>
                       <Icon name="x" size={17} /> Cancel
                     </Button>
                     <Button variant="primary" className="btn-block" onClick={saveEdit}>
