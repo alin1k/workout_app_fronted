@@ -4,10 +4,17 @@ import { api } from '../lib/api.js';
 const AppContext = createContext(null);
 
 // Local integer id generator for items the frontend mints before the server
-// does (currently: addExercise/addSet, until Tasks 7–9 swap each one to a
-// network call). Starts high so it can't collide with server-assigned ids.
+// does (currently: addSet, until Task 9 swaps it to a network call). Starts
+// high so it can't collide with server-assigned ids.
 let _nextId = 100000;
 const nextId = () => _nextId++;
+
+// Temp ids for optimistic mutations awaiting their server response. Always
+// negative so they can't collide with real (positive-integer) backend ids;
+// callers swap the temp entry for the server response on success, or remove
+// it on rollback.
+let _tempId = 0;
+const tempId = () => --_tempId;
 
 // Derive the shallow count fields a list entry uses, from a detail tree.
 function shallowFromTree(w) {
@@ -190,24 +197,86 @@ export function AppProvider({ children }) {
     return { error: null };
   };
 
-  // ---------- exercise mutations (in-memory; Tasks 7–10 wire to backend) ----------
-  const addExercise = (_workoutId, type) => {
-    patchCurrentWorkout((w) => ({
-      ...w,
-      exercises: [
-        ...w.exercises,
-        {
-          id: nextId(),
-          workout_id: w.id,
-          exercise_type_id: type.id,
-          exercise_type: type,
-          order: w.exercises.length + 1,
-          sets: [],
-        },
-      ],
-    }));
+  // ---------- exercise mutations ----------
+  // Optimistic: drop a temp-id exercise into currentWorkout immediately,
+  // close the sheet, then POST. On success swap the temp entry for the
+  // server response and patch list counts. On failure roll back + alert.
+  const addExercise = async (_workoutId, type) => {
+    const w = currentWorkout;
+    if (!w) {
+      flash('No active workout', 'alert');
+      return { error: { message: 'No active workout' } };
+    }
+    const wId = w.id;
+    const tid = tempId();
+
+    setCurrentWorkout((cw) => {
+      if (!cw || cw.id !== wId) return cw;
+      return {
+        ...cw,
+        exercises: [
+          ...cw.exercises,
+          {
+            id: tid,
+            workout_id: wId,
+            exercise_type_id: type.id,
+            exercise_type: type,
+            order: cw.exercises.length + 1,
+            sets: [],
+          },
+        ],
+      };
+    });
     setSheet(null);
     flash(type.name + ' added', 'check');
+
+    const { data: created, error } = await api.post(
+      `/api/workouts/${wId}/exercises`,
+      { exercise_type_id: type.id }
+    );
+
+    if (error) {
+      setCurrentWorkout((cw) => {
+        if (!cw || cw.id !== wId) return cw;
+        return { ...cw, exercises: cw.exercises.filter((e) => e.id !== tid) };
+      });
+      flash('Could not add exercise', 'alert');
+      return { error };
+    }
+
+    // Swap temp entry for the server response (already embeds exercise_type).
+    // Preserve any sets the user may have logged in the brief window between
+    // the optimistic insert and the response, retagging their exercise_id to
+    // the now-real one. (Those sets are still local-only until Task 9 wires
+    // them; this just prevents them from disappearing on swap.)
+    setCurrentWorkout((cw) => {
+      if (!cw || cw.id !== wId) return cw;
+      return {
+        ...cw,
+        exercises: cw.exercises.map((e) => {
+          if (e.id !== tid) return e;
+          return {
+            ...created,
+            sets: e.sets.map((s) => ({ ...s, exercise_id: created.id })),
+          };
+        }),
+      };
+    });
+
+    // Keep the shallow list entry's counts in sync (locked sync decision).
+    patchWorkoutInList(wId, (entry) => {
+      const had = (entry.muscle_groups || []).includes(type.muscle_group);
+      const muscles = type.muscle_group && !had
+        ? [...(entry.muscle_groups || []), type.muscle_group].sort()
+        : (entry.muscle_groups || []);
+      return {
+        ...entry,
+        exercise_count: (entry.exercise_count ?? 0) + 1,
+        muscle_groups: muscles,
+      };
+    });
+
+    return { exercise: created };
   };
 
   const removeExercise = (_workoutId, exId) =>
