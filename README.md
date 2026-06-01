@@ -1,20 +1,62 @@
-# React + Vite
+# Workout App — Frontend
 
-## Backend
+React + Vite SPA for the Grove workout tracker. Talks to the Flask backend over JSON; auth is JWT in the `Authorization` header.
 
-The app talks to the Flask backend at `http://localhost:5000` by default — start it before `npm run dev`. Override with `VITE_API_BASE_URL` in `.env.development` (see `.env.example`). All HTTP calls go through `src/lib/api.js`; do not call `fetch` directly from components.
+## Requirements
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+- Node 20+
+- The backend running on `http://localhost:5000` (see `../backend/README.md`)
 
-Currently, two official plugins are available:
+## Setup
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+```bash
+cp .env.example .env.development   # optional — only if you need to override VITE_API_BASE_URL
+npm install
+```
 
-## React Compiler
+## Develop
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+```bash
+npm run dev     # Vite dev server with HMR on http://localhost:5173
+npm run lint    # ESLint
+npm run build   # local production build → ./dist
+npm run preview # serve the local build
+```
 
-## Expanding the ESLint configuration
+Backend must be up first or every request will fail with a network error.
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+## Project layout
+
+```
+src/
+  context/        AuthContext, AppContext
+  screens/        top-level routes (Login, WorkoutsList, WorkoutDetail)
+  sheets/         bottom-sheet forms
+  components/     leaf UI primitives (Button, Field, Icon, …)
+  lib/            api.js (all fetch traffic), format helpers, constants
+  styles/         tokens.css + global.css
+```
+
+All HTTP traffic flows through `src/lib/api.js` — do not call `fetch` directly from components. The JWT is read from `localStorage.auth_token` and attached automatically; a `401` on any non-auth endpoint clears the token, flashes a "session expired" toast, and redirects to `/login`.
+
+## Building the `dist/` directory via Docker
+
+The Dockerfile is a two-stage build whose final `dist` stage is a `scratch` image containing only the compiled assets. Use BuildKit's `--output` to extract them straight to the host:
+
+```bash
+docker build --target dist --output type=local,dest=./dist .
+```
+
+This produces `./dist/` with `index.html` and the hashed `assets/` bundle, ready to be served by any static host (nginx, S3, etc.) — no Node toolchain required on the build host beyond Docker.
+
+For a plain in-container build (no extraction):
+
+```bash
+docker build --target builder -t workout-frontend-build .
+```
+
+## Environment variables
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `VITE_API_BASE_URL` | `http://localhost:5000` | Backend origin. Baked into the bundle at build time. |
