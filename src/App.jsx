@@ -1,8 +1,11 @@
 import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
+import { AuthProvider } from './context/AuthContext.jsx';
 import { AppProvider, useApp } from './context/AppContext.jsx';
+import RequireAuth from './components/RequireAuth.jsx';
 import StageBackdrop from './components/StageBackdrop.jsx';
 import Toast from './components/Toast.jsx';
 import Confirm from './components/Confirm.jsx';
+import Login from './screens/Login.jsx';
 import WorkoutsList from './screens/WorkoutsList.jsx';
 import WorkoutDetail from './screens/WorkoutDetail.jsx';
 import WorkoutForm from './sheets/WorkoutForm.jsx';
@@ -68,21 +71,39 @@ function GlobalOverlays() {
   );
 }
 
-function App() {
+function ProtectedShell() {
   return (
     <AppProvider>
-      <div className="stage">
-        <StageBackdrop />
-        <div className="app-root">
-          <Routes>
-            <Route path="/" element={<WorkoutsList />} />
-            <Route path="/workouts/:id" element={<WorkoutDetail />} />
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
-        </div>
-        <GlobalOverlays />
-      </div>
+      <Routes>
+        <Route path="/" element={<WorkoutsList />} />
+        <Route path="/workouts/:id" element={<WorkoutDetail />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+      <GlobalOverlays />
     </AppProvider>
+  );
+}
+
+function App() {
+  return (
+    <div className="stage">
+      <StageBackdrop />
+      <div className="app-root">
+        <AuthProvider>
+          <Routes>
+            <Route path="/login" element={<Login />} />
+            <Route
+              path="/*"
+              element={
+                <RequireAuth>
+                  <ProtectedShell />
+                </RequireAuth>
+              }
+            />
+          </Routes>
+        </AuthProvider>
+      </div>
+    </div>
   );
 }
 

@@ -1,11 +1,14 @@
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext.jsx';
+import { useAuth } from '../context/AuthContext.jsx';
 import { fmtRelative } from '../lib/format.js';
 import Icon from '../components/Icon.jsx';
+import IconButton from '../components/IconButton.jsx';
 import Button from '../components/Button.jsx';
 
 function WorkoutsList() {
   const { workouts, workoutsStatus, workoutsError, fetchWorkouts, openSheet } = useApp();
+  const { logout } = useAuth();
   const navigate = useNavigate();
   const onOpen = (id) => navigate(`/workouts/${id}`);
   const onNew = () => openSheet({ kind: 'newWorkout' });
@@ -42,6 +45,7 @@ function WorkoutsList() {
             </div>
           </div>
         </div>
+        <IconButton name="logout" label="Log out" onClick={logout} />
       </header>
 
       <div className="scroll">
