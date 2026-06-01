@@ -12,6 +12,9 @@ function GlobalOverlays() {
   const {
     workouts,
     types,
+    typesStatus,
+    typesError,
+    fetchTypes,
     toast,
     confirm,
     sheet,
@@ -50,6 +53,9 @@ function GlobalOverlays() {
       {sheet?.kind === 'addExercise' && (
         <ExercisePicker
           types={types}
+          typesStatus={typesStatus}
+          typesError={typesError}
+          fetchTypes={fetchTypes}
           onPick={(type) => addExercise(sheet.workoutId, type)}
           onCreateType={(data) => createType(sheet.workoutId, data)}
           onClose={closeSheet}

@@ -1,18 +1,27 @@
 import { useMemo, useState } from 'react';
 import Icon from '../components/Icon.jsx';
+import Button from '../components/Button.jsx';
 import Sheet from '../components/Sheet.jsx';
 import MuscleBadge from '../components/MuscleBadge.jsx';
 import NewTypeForm from './NewTypeForm.jsx';
 
-function ExercisePicker({ types, onPick, onCreateType, onClose }) {
+function ExercisePicker({
+  types,
+  typesStatus,
+  typesError,
+  fetchTypes,
+  onPick,
+  onCreateType,
+  onClose,
+}) {
   const [q, setQ] = useState('');
   const [creating, setCreating] = useState(false);
 
   const query = q.trim().toLowerCase();
+  // Backend already returns types sorted alphabetically — don't re-sort.
   const filtered = useMemo(() => {
-    const list = [...types].sort((a, b) => a.name.localeCompare(b.name));
-    if (!query) return list;
-    return list.filter(
+    if (!query) return types;
+    return types.filter(
       (t) =>
         t.name.toLowerCase().includes(query) ||
         (t.muscle_group && t.muscle_group.includes(query))
@@ -22,6 +31,9 @@ function ExercisePicker({ types, onPick, onCreateType, onClose }) {
   const exactExists = filtered.some((t) => t.name.toLowerCase() === query);
   const existsName = (n) =>
     types.find((t) => t.name.trim().toLowerCase() === n.trim().toLowerCase());
+
+  const isLoading = typesStatus === 'loading' && types.length === 0;
+  const isError = typesStatus === 'error';
 
   return (
     <Sheet
@@ -34,12 +46,12 @@ function ExercisePicker({ types, onPick, onCreateType, onClose }) {
           presetName={q.trim()}
           existsName={existsName}
           onCancel={() => setCreating(false)}
-          onCreate={(data, existing) => {
+          onCreate={async (data, existing) => {
             if (existing) {
               onPick(existing);
               return;
             }
-            onCreateType(data);
+            return await onCreateType(data);
           }}
         />
       ) : (
@@ -51,6 +63,7 @@ function ExercisePicker({ types, onPick, onCreateType, onClose }) {
               border: '1.5px solid var(--border)',
               borderRadius: 'calc(var(--radius)*0.7 + 2px)',
               padding: '0 12px',
+              opacity: isError ? 0.55 : 1,
             }}
           >
             <span style={{ color: 'var(--text-muted)' }}>
@@ -68,10 +81,29 @@ function ExercisePicker({ types, onPick, onCreateType, onClose }) {
               onChange={(e) => setQ(e.target.value)}
               placeholder="Search movements…"
               autoFocus
+              disabled={isError}
             />
           </div>
 
-          {types.length === 0 ? (
+          {isLoading ? (
+            <div className="col gap8" aria-busy="true" aria-label="Loading catalog">
+              {[0, 1, 2].map((i) => (
+                <div key={i} className="pick skeleton" style={{ minHeight: 54 }} />
+              ))}
+            </div>
+          ) : isError ? (
+            <div className="empty fade-in" style={{ padding: '14px 8px', gap: 12 }}>
+              <div>
+                <div className="h-md" style={{ marginBottom: 4 }}>Couldn’t load catalog</div>
+                <div className="muted" style={{ fontSize: 13.5, lineHeight: 1.5, maxWidth: 260 }}>
+                  {typesError?.message || 'Try again in a moment.'}
+                </div>
+              </div>
+              <Button variant="soft" onClick={fetchTypes}>
+                <Icon name="repeat" size={16} /> Retry
+              </Button>
+            </div>
+          ) : types.length === 0 ? (
             <div className="empty" style={{ padding: '20px 10px' }}>
               <div className="muted" style={{ fontSize: 14.5 }}>
                 Your catalog is empty.<br />Add the first movement below.
@@ -117,19 +149,21 @@ function ExercisePicker({ types, onPick, onCreateType, onClose }) {
             </div>
           )}
 
-          <button
-            className="pick"
-            style={{
-              borderStyle: 'dashed',
-              justifyContent: 'center',
-              color: 'var(--primary-deep)',
-              fontWeight: 700,
-            }}
-            onClick={() => setCreating(true)}
-          >
-            <Icon name="plus" size={18} />{' '}
-            {query && !exactExists ? `Add “${q.trim()}” as new movement` : 'Add new movement'}
-          </button>
+          {!isError && (
+            <button
+              className="pick"
+              style={{
+                borderStyle: 'dashed',
+                justifyContent: 'center',
+                color: 'var(--primary-deep)',
+                fontWeight: 700,
+              }}
+              onClick={() => setCreating(true)}
+            >
+              <Icon name="plus" size={18} />{' '}
+              {query && !exactExists ? `Add “${q.trim()}” as new movement` : 'Add new movement'}
+            </button>
+          )}
         </div>
       )}
     </Sheet>

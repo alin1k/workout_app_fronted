@@ -4,8 +4,8 @@ import { api } from '../lib/api.js';
 const AppContext = createContext(null);
 
 // Local integer id generator for items the frontend mints before the server
-// does (currently: every create, until Tasks 6–9 swap each one to a network
-// call). Starts high so it can't collide with server-assigned ids.
+// does (currently: addExercise/addSet, until Tasks 7–9 swap each one to a
+// network call). Starts high so it can't collide with server-assigned ids.
 let _nextId = 100000;
 const nextId = () => _nextId++;
 
@@ -27,6 +27,8 @@ function shallowFromTree(w) {
 
 export function AppProvider({ children }) {
   const [types, setTypes] = useState([]);
+  const [typesStatus, setTypesStatus] = useState('loading');
+  const [typesError, setTypesError] = useState(null);
   const [workouts, setWorkouts] = useState([]);
   const [workoutsStatus, setWorkoutsStatus] = useState('loading');
   const [workoutsError, setWorkoutsError] = useState(null);
@@ -70,6 +72,25 @@ export function AppProvider({ children }) {
     fetchWorkouts();
   }, [fetchWorkouts]);
 
+  // ---------- exercise-types catalog fetch ----------
+  const fetchTypes = useCallback(async () => {
+    setTypesStatus('loading');
+    setTypesError(null);
+    const { data, error } = await api.get('/api/exercise-types');
+    if (error) {
+      setTypesError(error);
+      setTypesStatus('error');
+      return;
+    }
+    setTypes(data || []);
+    setTypesStatus('ready');
+  }, []);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    fetchTypes();
+  }, [fetchTypes]);
+
   // ---------- current workout (detail page) ----------
   const fetchWorkout = useCallback(async (id) => {
     setCurrentWorkoutStatus('loading');
@@ -87,8 +108,7 @@ export function AppProvider({ children }) {
     }
     setCurrentWorkout(data);
     setCurrentWorkoutStatus('ready');
-    // Patch the matching shallow list entry so any drift between the list
-    // and the freshly-loaded detail gets reconciled.
+    // Reconcile the matching shallow list entry with the freshly-loaded tree.
     setWorkouts((ws) => ws.map((w) =>
       w.id === data.id
         ? {
@@ -123,7 +143,6 @@ export function AppProvider({ children }) {
   const patchCurrentWorkout = (fn) =>
     setCurrentWorkout((w) => (w ? fn(w) : w));
 
-  // POST /api/workouts → 201 with the created workout (no count fields).
   const createWorkout = async (data) => {
     const { data: created, error } = await api.post('/api/workouts', data);
     if (error) return { error };
@@ -139,7 +158,6 @@ export function AppProvider({ children }) {
     return { id: created.id };
   };
 
-  // PUT /api/workouts/<id> → 200 with the full nested tree.
   const saveWorkout = async (id, data) => {
     const { data: updated, error } = await api.put(`/api/workouts/${id}`, data);
     if (error) return { error };
@@ -149,8 +167,6 @@ export function AppProvider({ children }) {
       performed_at: updated.performed_at,
       notes: updated.notes,
     }));
-    // Mirror the change into currentWorkout if we're editing while on the
-    // detail page.
     setCurrentWorkout((cw) =>
       cw && cw.id === id
         ? { ...cw, name: updated.name, performed_at: updated.performed_at, notes: updated.notes }
@@ -161,7 +177,6 @@ export function AppProvider({ children }) {
     return { error: null };
   };
 
-  // DELETE /api/workouts/<id> → 204. 404 is treated as success.
   const deleteWorkout = async (id) => {
     const { error } = await api.del(`/api/workouts/${id}`);
     setConfirm(null);
@@ -170,18 +185,12 @@ export function AppProvider({ children }) {
       return { error };
     }
     setWorkouts((ws) => ws.filter((w) => w.id !== id));
-    // If the deleted workout was being viewed, drop it from detail state too;
-    // WorkoutDetail's effect will bounce home when it sees status=ready and
-    // currentWorkout=null.
     setCurrentWorkout((cw) => (cw && cw.id === id ? null : cw));
     flash('Workout deleted', 'trash');
     return { error: null };
   };
 
   // ---------- exercise mutations (in-memory; Tasks 7–10 wire to backend) ----------
-  // These now operate on currentWorkout (the detail page's full tree).
-  // The `workoutId` arg is kept in the signature for compatibility but is
-  // not used — currentWorkout.id is the authoritative id.
   const addExercise = (_workoutId, type) => {
     patchCurrentWorkout((w) => ({
       ...w,
@@ -258,16 +267,28 @@ export function AppProvider({ children }) {
     }));
 
   // ---------- catalog mutations ----------
-  const createType = (workoutId, data) => {
-    const type = { id: nextId(), ...data };
-    setTypes((ts) => [...ts, type]);
-    addExercise(workoutId, type);
+  // POST /api/exercise-types → 201 (returns the created type).
+  // On 409 ConflictError, refetches the catalog so the NewTypeForm's reactive
+  // dup check picks up the existing type and surfaces the "use existing"
+  // affordance with a real reference.
+  const createType = async (workoutId, data) => {
+    const { data: created, error } = await api.post('/api/exercise-types', data);
+    if (error) {
+      if (error.status === 409) {
+        // Catalog likely stale; pull the latest so the dup-affordance can
+        // resolve to a real type object.
+        const { data: latest } = await api.get('/api/exercise-types');
+        if (latest) setTypes(latest);
+      }
+      return { error };
+    }
+    setTypes((ts) => [...ts, created]);
+    addExercise(workoutId, created);
+    return { type: created };
   };
 
   // ---------- confirm builders ----------
   const askDeleteWorkout = (w) => {
-    // Reads from either the shallow list shape (exercise_count) or the full
-    // tree (exercises[]) — whichever is present at the call site.
     const ex = w.exercise_count ?? w.exercises?.length ?? 0;
     const st = w.set_count ?? w.exercises?.reduce((n, e) => n + e.sets.length, 0) ?? 0;
     setConfirm({
@@ -312,6 +333,8 @@ export function AppProvider({ children }) {
     currentWorkoutError,
     currentNotFound,
     types,
+    typesStatus,
+    typesError,
     typeById,
     // ui state
     sheet,
@@ -326,6 +349,7 @@ export function AppProvider({ children }) {
     // data actions
     fetchWorkouts,
     fetchWorkout,
+    fetchTypes,
     clearCurrentWorkout,
     // workout actions
     createWorkout,
