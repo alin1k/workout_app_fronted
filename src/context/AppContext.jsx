@@ -53,6 +53,10 @@ export function AppProvider({ children }) {
   );
 
   const toastTimer = useRef(null);
+  // Tracks temp-id exercises the user removed locally while their original
+  // POST was still in flight. addExercise's success handler consults this so
+  // it can clean up the server-side row instead of resurrecting it locally.
+  const removedTempsRef = useRef(new Set());
   const flash = (message, icon) => {
     setToast({ message, icon });
     clearTimeout(toastTimer.current);
@@ -240,8 +244,18 @@ export function AppProvider({ children }) {
         if (!cw || cw.id !== wId) return cw;
         return { ...cw, exercises: cw.exercises.filter((e) => e.id !== tid) };
       });
+      removedTempsRef.current.delete(tid);
       flash('Could not add exercise', 'alert');
       return { error };
+    }
+
+    // The user may have removed the optimistic entry while the POST was in
+    // flight. In that case don't resurrect it locally — and tell the server
+    // to drop the row it just created.
+    if (removedTempsRef.current.has(tid)) {
+      removedTempsRef.current.delete(tid);
+      api.del(`/api/exercises/${created.id}`);
+      return { exercise: created };
     }
 
     // Swap temp entry for the server response (already embeds exercise_type).
@@ -279,11 +293,73 @@ export function AppProvider({ children }) {
     return { exercise: created };
   };
 
-  const removeExercise = (_workoutId, exId) =>
-    patchCurrentWorkout((w) => ({
-      ...w,
-      exercises: w.exercises.filter((e) => e.id !== exId),
-    }));
+  // Optimistic: drop the exercise from currentWorkout immediately, then
+  // DELETE. On 404 treat as already gone (keep removed); on any other error
+  // re-insert the snapshot at its original index and alert.
+  const removeExercise = async (_workoutId, exId) => {
+    // Temp-id exercise: never made it to the server. Just remove locally
+    // and mark it so addExercise's pending POST can clean up server-side.
+    if (exId < 0) {
+      removedTempsRef.current.add(exId);
+      setCurrentWorkout((cw) => {
+        if (!cw) return cw;
+        return { ...cw, exercises: cw.exercises.filter((e) => e.id !== exId) };
+      });
+      return { error: null };
+    }
+
+    const w = currentWorkout;
+    if (!w) return { error: null };
+    const wId = w.id;
+    const idx = w.exercises.findIndex((e) => e.id === exId);
+    if (idx === -1) return { error: null };
+    const snapshot = w.exercises[idx];
+
+    // Optimistic remove + matching list-counts sync.
+    setCurrentWorkout((cw) => {
+      if (!cw || cw.id !== wId) return cw;
+      return { ...cw, exercises: cw.exercises.filter((e) => e.id !== exId) };
+    });
+    patchWorkoutInList(wId, (entry) => {
+      const remaining = w.exercises.filter((e) => e.id !== exId);
+      const muscles = [
+        ...new Set(remaining.map((e) => e.exercise_type?.muscle_group).filter(Boolean)),
+      ].sort();
+      return {
+        ...entry,
+        exercise_count: Math.max(0, (entry.exercise_count ?? 1) - 1),
+        muscle_groups: muscles,
+      };
+    });
+
+    const { error } = await api.del(`/api/exercises/${exId}`);
+
+    if (error && error.status !== 404) {
+      // Rollback — reinsert at original index, restore the count + chip.
+      setCurrentWorkout((cw) => {
+        if (!cw || cw.id !== wId) return cw;
+        const next = [...cw.exercises];
+        next.splice(idx, 0, snapshot);
+        return { ...cw, exercises: next };
+      });
+      patchWorkoutInList(wId, (entry) => {
+        const restored = snapshot.exercise_type?.muscle_group;
+        const had = restored && (entry.muscle_groups || []).includes(restored);
+        const muscles = restored && !had
+          ? [...(entry.muscle_groups || []), restored].sort()
+          : (entry.muscle_groups || []);
+        return {
+          ...entry,
+          exercise_count: (entry.exercise_count ?? 0) + 1,
+          muscle_groups: muscles,
+        };
+      });
+      flash('Could not remove exercise', 'alert');
+      return { error };
+    }
+
+    return { error: null };
+  };
 
   const moveExercise = (_workoutId, exId, dir) =>
     patchCurrentWorkout((w) => {
