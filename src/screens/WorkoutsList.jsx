@@ -1,14 +1,12 @@
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext.jsx';
-import { useAuth } from '../context/AuthContext.jsx';
 import { fmtRelative } from '../lib/format.js';
 import Icon from '../components/Icon.jsx';
-import IconButton from '../components/IconButton.jsx';
 import Button from '../components/Button.jsx';
+import UserMenu from '../components/UserMenu.jsx';
 
 function WorkoutsList() {
   const { workouts, workoutsStatus, workoutsError, fetchWorkouts, openSheet } = useApp();
-  const { logout } = useAuth();
   const navigate = useNavigate();
   const onOpen = (id) => navigate(`/workouts/${id}`);
   const onNew = () => openSheet({ kind: 'newWorkout' });
@@ -45,7 +43,7 @@ function WorkoutsList() {
             </div>
           </div>
         </div>
-        <IconButton name="logout" label="Log out" onClick={logout} />
+        <UserMenu />
       </header>
 
       <div className="scroll">
@@ -111,7 +109,7 @@ function WorkoutsList() {
           ) : (
             <>
               <div className="row between" style={{ marginBottom: 14 }}>
-                <div className="display-xl">This&nbsp;week</div>
+                <div className="display-xl">Your&nbsp;workouts</div>
                 <span className="chip chip-outline">
                   {workouts.length} session{workouts.length !== 1 ? 's' : ''}
                 </span>

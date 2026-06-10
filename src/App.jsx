@@ -8,6 +8,7 @@ import Confirm from './components/Confirm.jsx';
 import Login from './screens/Login.jsx';
 import WorkoutsList from './screens/WorkoutsList.jsx';
 import WorkoutDetail from './screens/WorkoutDetail.jsx';
+import ResetPassword from './screens/ResetPassword.jsx';
 import WorkoutForm from './sheets/WorkoutForm.jsx';
 import ExercisePicker from './sheets/ExercisePicker.jsx';
 
@@ -77,6 +78,7 @@ function ProtectedShell() {
       <Routes>
         <Route path="/" element={<WorkoutsList />} />
         <Route path="/workouts/:id" element={<WorkoutDetail />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
       <GlobalOverlays />

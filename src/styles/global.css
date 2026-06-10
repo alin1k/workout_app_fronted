@@ -17,7 +17,7 @@ body {
 
 /* ---- Outer stage: organic backdrop, centers the app on desktop ---- */
 .stage {
-  min-height: 100vh;
+  min-height: 100dvh;
   display: flex;
   justify-content: center;
   align-items: stretch;
@@ -31,7 +31,6 @@ body {
   z-index: 1;
   width: 100%;
   max-width: 460px;
-  height: 100vh;
   height: 100dvh;
   background: var(--bg);
   display: flex;
@@ -42,7 +41,6 @@ body {
 }
 @media (min-width: 540px) {
   .app-root {
-    height: calc(100vh - 48px);
     height: calc(100dvh - 48px);
     margin: 24px 0;
     border-radius: calc(var(--radius) + 14px);
@@ -109,6 +107,34 @@ h1, h2, h3, .display { font-family: var(--font-display); margin: 0; letter-spaci
 .icon-btn:hover { background: var(--surface-alt); }
 .icon-btn:active { transform: scale(0.92); }
 .icon-btn:disabled { opacity: 0.32; cursor: not-allowed; }
+
+/* ---- Dropdown menu ---- */
+.menu-wrap { position: relative; flex: 0 0 auto; }
+.menu {
+  position: absolute; right: 0; top: calc(100% + 6px); z-index: 30;
+  min-width: 190px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  box-shadow: 0 14px 34px -16px oklch(0.25 0.02 152 / 0.45);
+  padding: 6px;
+  display: flex; flex-direction: column; gap: 2px;
+}
+.menu-item {
+  font-family: var(--font-body);
+  font-weight: 700; font-size: 14.5px;
+  border: none; cursor: pointer;
+  background: transparent; color: var(--text);
+  border-radius: 10px;
+  padding: 10px 12px;
+  display: flex; align-items: center; gap: 10px;
+  text-align: left; white-space: nowrap;
+  transition: background .15s ease, color .15s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+.menu-item:hover { background: var(--surface-alt); }
+.menu-item-danger { color: var(--danger); }
+.menu-item-danger:hover { background: var(--danger-soft); }
 
 /* ---- Cards ---- */
 .card {
