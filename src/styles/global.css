@@ -356,3 +356,125 @@ h1, h2, h3, .display { font-family: var(--font-display); margin: 0; letter-spaci
 /* scrollbar */
 .scroll::-webkit-scrollbar, .sheet-body::-webkit-scrollbar { width: 8px; }
 .scroll::-webkit-scrollbar-thumb, .sheet-body::-webkit-scrollbar-thumb { background: var(--border); border-radius: 8px; }
+
+/* floating action button — sits above the bottom nav, lower-right */
+.fab {
+  position: absolute; z-index: 25;
+  right: 18px; bottom: calc(88px + env(safe-area-inset-bottom));
+  width: 56px; height: 56px; border-radius: 999px;
+  display: flex; align-items: center; justify-content: center;
+  border: none; cursor: pointer; color: var(--on-primary);
+  background: var(--primary);
+  box-shadow: 0 12px 26px -8px color-mix(in oklch, var(--primary-deep) 75%, transparent),
+              0 3px 8px -2px color-mix(in oklch, var(--primary-deep) 50%, transparent);
+  transition: transform .14s ease, box-shadow .16s ease, background .16s ease;
+}
+.fab:hover { background: var(--primary-deep); transform: translateY(-2px); box-shadow: 0 16px 30px -8px color-mix(in oklch, var(--primary-deep) 80%, transparent); }
+.fab:active { transform: scale(0.93); }
+
+/* ============================================================
+   Bottom tab navigation
+   ============================================================ */
+.tabbar {
+  flex: 0 0 auto; z-index: 30;
+  display: grid; grid-template-columns: 1fr 1fr;
+  background: color-mix(in oklch, var(--bg) 92%, transparent);
+  backdrop-filter: blur(14px);
+  border-top: 1px solid color-mix(in oklch, var(--border) 80%, transparent);
+  padding: 8px 14px calc(8px + env(safe-area-inset-bottom));
+  gap: 8px;
+}
+.tab-btn {
+  appearance: none; border: none; background: none; cursor: pointer;
+  font-family: var(--font-body); color: var(--text-muted);
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+  padding: 7px 6px 6px; border-radius: 14px;
+  transition: color .16s ease, background .16s ease;
+}
+.tab-btn .tab-ico {
+  display: flex; align-items: center; justify-content: center;
+  width: 46px; height: 28px; border-radius: 999px;
+  transition: background .18s ease, color .18s ease;
+}
+.tab-btn .tab-lbl { font-size: 11.5px; font-weight: 700; letter-spacing: 0.01em; }
+.tab-btn:hover { color: var(--text); }
+.tab-btn.is-on { color: var(--primary-deep); }
+.tab-btn.is-on .tab-ico { background: var(--accent-soft); color: var(--primary-deep); }
+
+/* ============================================================
+   Dashboard / Progress
+   ============================================================ */
+.appbar-mark {
+  width: 38px; height: 38px; border-radius: 12px; flex: 0 0 auto;
+  background: var(--primary); color: var(--on-primary);
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 6px 14px -8px var(--primary-deep);
+}
+.empty-orb {
+  width: 88px; height: 88px; border-radius: 999px; display: flex; align-items: center; justify-content: center;
+  background: var(--accent-soft); color: var(--primary-deep);
+}
+.page-dash { padding-bottom: 28px; }
+.dash-stack { display: flex; flex-direction: column; gap: 14px; }
+.dash-section-label { font-size: 11px; font-weight: 800; letter-spacing: 0.07em; text-transform: uppercase; color: var(--text-muted); padding: 0 4px; }
+
+/* exercise picker */
+.ex-picker { margin: 0 -18px 0; }
+.ex-picker-row {
+  display: flex; gap: 8px; overflow-x: auto; padding: 2px 18px 6px;
+  scrollbar-width: none;
+}
+.ex-picker-row::-webkit-scrollbar { display: none; }
+.ex-chip {
+  flex: 0 0 auto; cursor: pointer; font-family: var(--font-body);
+  display: flex; flex-direction: column; align-items: flex-start; gap: 1px;
+  padding: 8px 14px; border-radius: 13px;
+  border: 1.5px solid var(--border); background: var(--surface); color: var(--text);
+  transition: border-color .14s ease, background .14s ease, transform .1s ease;
+}
+.ex-chip:active { transform: scale(0.97); }
+.ex-chip-name { font-size: 14px; font-weight: 700; white-space: nowrap; }
+.ex-chip-muscle { font-size: 10.5px; font-weight: 700; text-transform: capitalize; color: var(--text-muted); letter-spacing: 0.02em; }
+.ex-chip.is-on { background: var(--primary); border-color: var(--primary); color: var(--on-primary); box-shadow: 0 8px 18px -12px var(--primary-deep); }
+.ex-chip.is-on .ex-chip-muscle { color: color-mix(in oklch, var(--on-primary) 78%, var(--primary)); }
+
+/* stat tiles */
+.stat-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.stat-tile { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 13px 14px; display: flex; flex-direction: column; gap: 2px; }
+.stat-tile-icon { width: 30px; height: 30px; border-radius: 9px; background: var(--surface-alt); color: var(--primary-deep); display: flex; align-items: center; justify-content: center; margin-bottom: 6px; }
+.stat-tile-val { font-family: var(--font-display); font-size: 24px; font-weight: 800; line-height: 1.05; }
+.stat-tile-label { font-size: 12px; font-weight: 700; color: var(--text); }
+.stat-tile-sub { font-size: 11px; font-weight: 600; color: var(--text-muted); }
+
+/* chart card */
+.chart-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px 14px 10px; }
+.chart-card-hero { box-shadow: 0 16px 34px -26px var(--primary-deep); }
+.chart-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 0 4px 6px; }
+.chart-head-label { font-size: 11px; font-weight: 800; letter-spacing: 0.07em; text-transform: uppercase; color: var(--text-muted); white-space: nowrap; }
+.chart-head-val { font-family: var(--font-display); font-size: 30px; font-weight: 800; line-height: 1.05; margin-top: 3px; }
+.chart-head-unit { font-size: 15px; font-weight: 700; color: var(--text-muted); margin-left: 3px; }
+.chart-delta { display: inline-flex; align-items: center; gap: 3px; font-size: 12.5px; font-weight: 800; padding: 5px 10px; border-radius: 999px; }
+.chart-delta.up { color: var(--primary-deep); background: var(--accent-soft); }
+.chart-delta.down { color: var(--danger); background: var(--danger-soft); }
+.chart-delta.flat { color: var(--text-muted); background: var(--surface-alt); }
+.chart-delta-tag { font-weight: 700; opacity: 0.7; margin-left: 2px; }
+.chart-svg { display: block; width: 100%; height: auto; overflow: visible; }
+.chart-grid { stroke: var(--border); stroke-width: 1; stroke-dasharray: 3 4; opacity: 0.7; }
+.chart-grid-label { fill: var(--text-muted); font-size: 9px; font-weight: 700; font-family: var(--font-body); opacity: 0.8; }
+.chart-line { stroke: var(--primary); stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
+.chart-dot { fill: var(--surface); stroke: var(--primary); stroke-width: 2; }
+.chart-dot-pr { fill: var(--primary); stroke: var(--surface); stroke-width: 2; }
+.chart-dot-ring { fill: none; stroke: var(--primary); stroke-width: 1.5; opacity: 0.35; }
+.chart-x-label { fill: var(--text-muted); font-size: 9.5px; font-weight: 700; font-family: var(--font-body); }
+
+/* PR callout */
+.pr-callout { display: flex; align-items: center; gap: 13px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; }
+.pr-callout-wide { background: linear-gradient(105deg, var(--accent-soft), color-mix(in oklch, var(--surface) 70%, var(--accent-soft))); border-color: transparent; }
+.pr-medal { width: 44px; height: 44px; flex: 0 0 auto; border-radius: 13px; background: var(--primary); color: var(--on-primary); display: flex; align-items: center; justify-content: center; box-shadow: 0 8px 16px -10px var(--primary-deep); }
+.pr-body { flex: 1 1 auto; min-width: 0; }
+.pr-label { font-size: 11px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; color: var(--primary-deep); }
+.pr-value { font-family: var(--font-display); font-size: 26px; font-weight: 800; line-height: 1.05; }
+.pr-unit { font-size: 14px; font-weight: 700; color: var(--text-muted); margin-left: 3px; }
+.pr-date { text-align: right; flex: 0 0 auto; }
+.pr-date-label { font-size: 10.5px; font-weight: 700; color: var(--text-muted); }
+.pr-date-val { font-size: 14px; font-weight: 800; color: var(--text); }

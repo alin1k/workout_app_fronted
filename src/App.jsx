@@ -1,13 +1,15 @@
-import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
+import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext.jsx';
 import { AppProvider, useApp } from './context/AppContext.jsx';
 import RequireAuth from './components/RequireAuth.jsx';
 import StageBackdrop from './components/StageBackdrop.jsx';
+import TabBar from './components/TabBar.jsx';
 import Toast from './components/Toast.jsx';
 import Confirm from './components/Confirm.jsx';
 import Login from './screens/Login.jsx';
 import WorkoutsList from './screens/WorkoutsList.jsx';
 import WorkoutDetail from './screens/WorkoutDetail.jsx';
+import Dashboard from './screens/Dashboard.jsx';
 import ResetPassword from './screens/ResetPassword.jsx';
 import WorkoutForm from './sheets/WorkoutForm.jsx';
 import ExercisePicker from './sheets/ExercisePicker.jsx';
@@ -73,14 +75,19 @@ function GlobalOverlays() {
 }
 
 function ProtectedShell() {
+  const { pathname } = useLocation();
+  const showTabBar = pathname === '/' || pathname === '/progress';
+
   return (
     <AppProvider>
       <Routes>
         <Route path="/" element={<WorkoutsList />} />
         <Route path="/workouts/:id" element={<WorkoutDetail />} />
+        <Route path="/progress" element={<Dashboard />} />
         <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+      {showTabBar && <TabBar />}
       <GlobalOverlays />
     </AppProvider>
   );

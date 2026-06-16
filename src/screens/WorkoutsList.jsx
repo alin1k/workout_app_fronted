@@ -169,11 +169,9 @@ function WorkoutsList() {
       </div>
 
       {workoutsStatus === 'ready' && workouts.length > 0 && (
-        <div className="dock">
-          <Button size="lg" className="btn-block" onClick={onNew}>
-            <Icon name="plus" size={20} /> New workout
-          </Button>
-        </div>
+        <button className="fab" onClick={onNew} aria-label="New workout" title="New workout">
+          <Icon name="plus" size={26} stroke={2.4} />
+        </button>
       )}
     </>
   );
