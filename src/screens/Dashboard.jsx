@@ -237,8 +237,6 @@ function Dashboard() {
           </div>
         </div>
 
-        <div className="dash-section-label">Last 7 days stats</div>
-
         <ProgressSection
           status={progressStatus}
           progress={progress}
