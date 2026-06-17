@@ -109,7 +109,7 @@ function WorkoutsList() {
           ) : (
             <>
               <div className="row between" style={{ marginBottom: 14 }}>
-                <div className="display-xl">Your&nbsp;workouts</div>
+                <div className="display-xl">Your&nbsp;workoutssssss</div>
                 <span className="chip chip-outline">
                   {workouts.length} session{workouts.length !== 1 ? 's' : ''}
                 </span>
