@@ -62,7 +62,7 @@ export function AppProvider({ children }) {
   const fetchWorkouts = useCallback(async () => {
     setWorkoutsStatus('loading');
     setWorkoutsError(null);
-    const { data, error } = await api.get('/api/workouts');
+    const { data, error } = await api.get('/workouts');
     if (error) {
       setWorkoutsError(error);
       setWorkoutsStatus('error');
@@ -81,7 +81,7 @@ export function AppProvider({ children }) {
   const fetchTypes = useCallback(async () => {
     setTypesStatus('loading');
     setTypesError(null);
-    const { data, error } = await api.get('/api/exercise-types');
+    const { data, error } = await api.get('/exercise-types');
     if (error) {
       setTypesError(error);
       setTypesStatus('error');
@@ -101,7 +101,7 @@ export function AppProvider({ children }) {
     setCurrentWorkoutStatus('loading');
     setCurrentWorkoutError(null);
     setCurrentNotFound(false);
-    const { data, error } = await api.get(`/api/workouts/${id}`);
+    const { data, error } = await api.get(`/workouts/${id}`);
     if (error) {
       if (error.status === 404) {
         setCurrentNotFound(true);
@@ -146,7 +146,7 @@ export function AppProvider({ children }) {
     setWorkouts((ws) => ws.map((w) => (w.id === id ? fn(w) : w)));
 
   const createWorkout = async (data) => {
-    const { data: created, error } = await api.post('/api/workouts', data);
+    const { data: created, error } = await api.post('/workouts', data);
     if (error) return { error };
     const shallow = {
       ...created,
@@ -161,7 +161,7 @@ export function AppProvider({ children }) {
   };
 
   const saveWorkout = async (id, data) => {
-    const { data: updated, error } = await api.put(`/api/workouts/${id}`, data);
+    const { data: updated, error } = await api.put(`/workouts/${id}`, data);
     if (error) return { error };
     patchWorkoutInList(id, (w) => ({
       ...w,
@@ -180,7 +180,7 @@ export function AppProvider({ children }) {
   };
 
   const deleteWorkout = async (id) => {
-    const { error } = await api.del(`/api/workouts/${id}`);
+    const { error } = await api.del(`/workouts/${id}`);
     setConfirm(null);
     if (error && error.status !== 404) {
       flash(error.message || 'Could not delete workout', 'alert');
@@ -226,7 +226,7 @@ export function AppProvider({ children }) {
     flash(type.name + ' added', 'check');
 
     const { data: created, error } = await api.post(
-      `/api/workouts/${wId}/exercises`,
+      `/workouts/${wId}/exercises`,
       { exercise_type_id: type.id }
     );
 
@@ -245,7 +245,7 @@ export function AppProvider({ children }) {
     // to drop the row it just created.
     if (removedTempsRef.current.has(tid)) {
       removedTempsRef.current.delete(tid);
-      api.del(`/api/exercises/${created.id}`);
+      api.del(`/exercises/${created.id}`);
       return { exercise: created };
     }
 
@@ -323,7 +323,7 @@ export function AppProvider({ children }) {
       };
     });
 
-    const { error } = await api.del(`/api/exercises/${exId}`);
+    const { error } = await api.del(`/exercises/${exId}`);
 
     if (error && error.status !== 404) {
       // Rollback — reinsert at original index, restore the count + chip.
@@ -352,7 +352,7 @@ export function AppProvider({ children }) {
     return { error: null };
   };
 
-  // PUT /api/exercises/<id> with { order } → 200 returning the full parent
+  // PUT /exercises/<id> with { order } → 200 returning the full parent
   // workout. Optimistic local swap; on success replace currentWorkout
   // wholesale with the response (per locked decision — don't merge). On
   // failure restore the pre-swap snapshot.
@@ -386,7 +386,7 @@ export function AppProvider({ children }) {
     if (exId < 0) return { error: null };
 
     const { data: updated, error } = await api.put(
-      `/api/exercises/${exId}`,
+      `/exercises/${exId}`,
       { order: targetOrder }
     );
 
@@ -409,7 +409,7 @@ export function AppProvider({ children }) {
   };
 
   // ---------- set mutations (optimistic) ----------
-  // POST /api/exercises/<id>/sets. Inserts a temp-id set locally first,
+  // POST /exercises/<id>/sets. Inserts a temp-id set locally first,
   // bumps the list set_count, then fires the POST. Swaps the temp entry
   // for the server response on success; rolls back on failure.
   // Special case: if the parent exercise is still temp (addExercise hasn't
@@ -457,7 +457,7 @@ export function AppProvider({ children }) {
     const body = { reps: set.reps };
     if (set.weight != null) body.weight = set.weight;
     const { data: created, error } = await api.post(
-      `/api/exercises/${exId}/sets`,
+      `/exercises/${exId}/sets`,
       body
     );
 
@@ -492,7 +492,7 @@ export function AppProvider({ children }) {
     return { set: created };
   };
 
-  // DELETE /api/sets/<id>. Snapshot + optimistic remove + list decrement,
+  // DELETE /sets/<id>. Snapshot + optimistic remove + list decrement,
   // rollback on non-404 error.
   const removeSet = async (_workoutId, exId, setId) => {
     const w = currentWorkout;
@@ -521,7 +521,7 @@ export function AppProvider({ children }) {
     // Temp set or temp parent: never persisted.
     if (setId < 0 || exId < 0) return { error: null };
 
-    const { error } = await api.del(`/api/sets/${setId}`);
+    const { error } = await api.del(`/sets/${setId}`);
 
     if (error && error.status !== 404) {
       setCurrentWorkout((cw) => {
@@ -547,7 +547,7 @@ export function AppProvider({ children }) {
     return { error: null };
   };
 
-  // PUT /api/sets/<id>. Optimistic patch in place. The api.updateSet helper
+  // PUT /sets/<id>. Optimistic patch in place. The api.updateSet helper
   // swallows the "no fields to update" 400 as a silent success (locked UX:
   // submitting an empty edit closes the form quietly). On any other error
   // we roll back. Field errors are bubbled up to the caller so the edit
@@ -601,17 +601,17 @@ export function AppProvider({ children }) {
   };
 
   // ---------- catalog mutations ----------
-  // POST /api/exercise-types → 201 (returns the created type).
+  // POST /exercise-types → 201 (returns the created type).
   // On 409 ConflictError, refetches the catalog so the NewTypeForm's reactive
   // dup check picks up the existing type and surfaces the "use existing"
   // affordance with a real reference.
   const createType = async (workoutId, data) => {
-    const { data: created, error } = await api.post('/api/exercise-types', data);
+    const { data: created, error } = await api.post('/exercise-types', data);
     if (error) {
       if (error.status === 409) {
         // Catalog likely stale; pull the latest so the dup-affordance can
         // resolve to a real type object.
-        const { data: latest } = await api.get('/api/exercise-types');
+        const { data: latest } = await api.get('/exercise-types');
         if (latest) setTypes(latest);
       }
       return { error };

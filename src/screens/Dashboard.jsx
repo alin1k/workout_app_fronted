@@ -132,7 +132,7 @@ function Dashboard() {
 
   const fetchProgress = useCallback(async (typeId) => {
     setProgressStatus('loading');
-    const { data, error } = await api.get(`/api/dashboard/progress/${typeId}`);
+    const { data, error } = await api.get(`/dashboard/progress/${typeId}`);
     if (error) {
       setProgress(null);
       setProgressStatus('error');
@@ -144,7 +144,7 @@ function Dashboard() {
 
   const fetchSummary = useCallback(async () => {
     setSummaryStatus('loading');
-    const { data, error } = await api.get('/api/dashboard/summary');
+    const { data, error } = await api.get('/dashboard/summary');
     if (error) {
       setSummaryError(error);
       setSummaryStatus('error');

@@ -118,7 +118,7 @@ function WorkoutsList() {
                 {workouts.map((w) => {
                   const when = new Date(w.performed_at || w.created_at);
                   const isToday = fmtRelative(w.performed_at || w.created_at) === 'Today';
-                  // Counts come from the shallow GET /api/workouts response;
+                  // Counts come from the shallow GET /workouts response;
                   // freshly-created entries get zeros from createWorkout.
                   const exCount = w.exercise_count ?? 0;
                   const setCount = w.set_count ?? 0;

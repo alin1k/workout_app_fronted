@@ -1,7 +1,7 @@
 // Single point through which all backend calls flow.
 // Every method returns { data, error } and never throws.
 
-const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
+const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api/v1';
 
 // Wired by AuthProvider via configureAuth() on mount. Until that runs the
 // reader returns null and the 401 hook is a no-op, which is the right
@@ -93,12 +93,12 @@ export const api = {
   put: (path, body = {}) => request('PUT', path, body),
   del: (path) => request('DELETE', path),
 
-  // Special helper for PUT /api/sets/<id>. The backend returns a 400 with
+  // Special helper for PUT /sets/<id>. The backend returns a 400 with
   // message "no fields to update" when nothing mutable was sent. Treat that
   // as a silent no-op so the edit-set form can close without surfacing an
   // error.
   async updateSet(id, body) {
-    const result = await request('PUT', `/api/sets/${id}`, body ?? {});
+    const result = await request('PUT', `/sets/${id}`, body ?? {});
     if (
       result.error &&
       result.error.status === 400 &&
@@ -115,15 +115,15 @@ export const api = {
 // /me failure as "show login screen").
 export const authApi = {
   login: (username, password) =>
-    request('POST', '/api/auth/login', { username, password }, { skipAuthHandler: true }),
-  me: () => request('GET', '/api/auth/me', undefined, { skipAuthHandler: true }),
+    request('POST', '/auth/login', { username, password }, { skipAuthHandler: true }),
+  me: () => request('GET', '/auth/me', undefined, { skipAuthHandler: true }),
   // skipAuthHandler because the backend answers 401 for a wrong current
   // password — without the opt-out the global handler would read that as
   // "session expired" and log the user out mid-form.
   resetPassword: (currentPassword, newPassword) =>
     request(
       'POST',
-      '/api/auth/reset-password',
+      '/auth/reset-password',
       { current_password: currentPassword, new_password: newPassword },
       { skipAuthHandler: true }
     ),
