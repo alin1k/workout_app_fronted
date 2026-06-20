@@ -213,7 +213,7 @@ export function AppProvider({ children }) {
   };
 
   const saveWorkout = async (id, data) => {
-    const { data: updated, error } = await api.put(`/workouts/${id}`, data);
+    const { data: updated, error } = await api.patch(`/workouts/${id}`, data);
     if (error) return { error };
     patchWorkoutInList(id, (w) => ({
       ...w,
@@ -405,7 +405,7 @@ export function AppProvider({ children }) {
     return { error: null };
   };
 
-  // PUT /exercises/<id> with { order } → 200 returning the full parent
+  // PATCH /exercises/<id> with { order } → 200 returning the full parent
   // workout. Optimistic local swap; on success replace currentWorkout
   // wholesale with the response (per locked decision — don't merge). On
   // failure restore the pre-swap snapshot.
@@ -438,7 +438,7 @@ export function AppProvider({ children }) {
     // server's max+1 anyway.
     if (exId < 0) return { error: null };
 
-    const { data: updated, error } = await api.put(
+    const { data: updated, error } = await api.patch(
       `/exercises/${exId}`,
       { order: targetOrder }
     );
@@ -506,7 +506,7 @@ export function AppProvider({ children }) {
     if (exId < 0) return { set: tempSet };
 
     // Omit weight when null — the backend treats null on POST as
-    // out-of-spec; for PUT it's documented as "clears it".
+    // out-of-spec; for PATCH it's documented as "clears it".
     const body = { reps: set.reps };
     if (set.weight != null) body.weight = set.weight;
     const { data: created, error } = await api.post(
@@ -600,7 +600,7 @@ export function AppProvider({ children }) {
     return { error: null };
   };
 
-  // PUT /sets/<id>. Optimistic patch in place. The api.updateSet helper
+  // PATCH /sets/<id>. Optimistic patch in place. The api.updateSet helper
   // swallows the "no fields to update" 400 as a silent success (locked UX:
   // submitting an empty edit closes the form quietly). On any other error
   // we roll back. Field errors are bubbled up to the caller so the edit

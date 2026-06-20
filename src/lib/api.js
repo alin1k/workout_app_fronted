@@ -90,15 +90,15 @@ async function request(method, path, body, { skipAuthHandler = false } = {}) {
 export const api = {
   get: (path) => request('GET', path),
   post: (path, body = {}) => request('POST', path, body),
-  put: (path, body = {}) => request('PUT', path, body),
+  patch: (path, body = {}) => request('PATCH', path, body),
   del: (path) => request('DELETE', path),
 
-  // Special helper for PUT /sets/<id>. The backend returns a 400 with
+  // Special helper for PATCH /sets/<id>. The backend returns a 400 with
   // message "no fields to update" when nothing mutable was sent. Treat that
   // as a silent no-op so the edit-set form can close without surfacing an
   // error.
   async updateSet(id, body) {
-    const result = await request('PUT', `/sets/${id}`, body ?? {});
+    const result = await request('PATCH', `/sets/${id}`, body ?? {});
     if (
       result.error &&
       result.error.status === 400 &&
