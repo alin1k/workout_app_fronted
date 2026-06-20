@@ -6,7 +6,17 @@ import Button from '../components/Button.jsx';
 import UserMenu from '../components/UserMenu.jsx';
 
 function WorkoutsList() {
-  const { workouts, workoutsStatus, workoutsError, fetchWorkouts, openSheet } = useApp();
+  const {
+    workouts,
+    workoutsStatus,
+    workoutsError,
+    workoutsTotal,
+    workoutsHasNext,
+    workoutsLoadingMore,
+    fetchWorkouts,
+    loadMoreWorkouts,
+    openSheet,
+  } = useApp();
   const navigate = useNavigate();
   const onOpen = (id) => navigate(`/workouts/${id}`);
   const onNew = () => openSheet({ kind: 'newWorkout' });
@@ -111,7 +121,7 @@ function WorkoutsList() {
               <div className="row between" style={{ marginBottom: 14 }}>
                 <div className="display-xl">Your&nbsp;workouts</div>
                 <span className="chip chip-outline">
-                  {workouts.length} session{workouts.length !== 1 ? 's' : ''}
+                  {workoutsTotal} session{workoutsTotal !== 1 ? 's' : ''}
                 </span>
               </div>
               <div className="col gap12">
@@ -163,6 +173,16 @@ function WorkoutsList() {
                   );
                 })}
               </div>
+              {workoutsHasNext && (
+                <Button
+                  variant="soft"
+                  onClick={loadMoreWorkouts}
+                  disabled={workoutsLoadingMore}
+                  style={{ marginTop: 14, width: '100%' }}
+                >
+                  {workoutsLoadingMore ? 'Loading…' : 'Load more'}
+                </Button>
+              )}
             </>
           )}
         </div>

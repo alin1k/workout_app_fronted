@@ -20,7 +20,10 @@ function GlobalOverlays() {
     types,
     typesStatus,
     typesError,
+    typesHasNext,
+    typesLoadingMore,
     fetchTypes,
+    loadMoreTypes,
     toast,
     confirm,
     sheet,
@@ -61,7 +64,10 @@ function GlobalOverlays() {
           types={types}
           typesStatus={typesStatus}
           typesError={typesError}
+          typesHasNext={typesHasNext}
+          typesLoadingMore={typesLoadingMore}
           fetchTypes={fetchTypes}
+          loadMoreTypes={loadMoreTypes}
           onPick={(type) => addExercise(sheet.workoutId, type)}
           onCreateType={(data) => createType(sheet.workoutId, data)}
           onClose={closeSheet}

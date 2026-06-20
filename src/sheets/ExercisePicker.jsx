@@ -9,7 +9,10 @@ function ExercisePicker({
   types,
   typesStatus,
   typesError,
+  typesHasNext,
+  typesLoadingMore,
   fetchTypes,
+  loadMoreTypes,
   onPick,
   onCreateType,
   onClose,
@@ -145,6 +148,19 @@ function ExercisePicker({
                 >
                   No movement matches “{q.trim()}”.
                 </div>
+              )}
+              {/* Search filters only the already-loaded pages, so hide
+                  "Load more" while a query is active to avoid implying it
+                  searches the whole catalog. */}
+              {typesHasNext && !query && (
+                <Button
+                  variant="soft"
+                  onClick={loadMoreTypes}
+                  disabled={typesLoadingMore}
+                  style={{ marginTop: 2 }}
+                >
+                  {typesLoadingMore ? 'Loading…' : 'Load more'}
+                </Button>
               )}
             </div>
           )}

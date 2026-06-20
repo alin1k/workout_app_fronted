@@ -3,6 +3,9 @@ import { api } from '../lib/api.js';
 
 const AppContext = createContext(null);
 
+// How many items to request per page for the paginated list endpoints.
+const PAGE_SIZE = 20;
+
 // Temp ids for optimistic mutations awaiting their server response. Always
 // negative so they can't collide with real (positive-integer) backend ids;
 // callers swap the temp entry for the server response on success, or remove
@@ -30,9 +33,15 @@ export function AppProvider({ children }) {
   const [types, setTypes] = useState([]);
   const [typesStatus, setTypesStatus] = useState('loading');
   const [typesError, setTypesError] = useState(null);
+  const [typesTotal, setTypesTotal] = useState(0);
+  const [typesHasNext, setTypesHasNext] = useState(false);
+  const [typesLoadingMore, setTypesLoadingMore] = useState(false);
   const [workouts, setWorkouts] = useState([]);
   const [workoutsStatus, setWorkoutsStatus] = useState('loading');
   const [workoutsError, setWorkoutsError] = useState(null);
+  const [workoutsTotal, setWorkoutsTotal] = useState(0);
+  const [workoutsHasNext, setWorkoutsHasNext] = useState(false);
+  const [workoutsLoadingMore, setWorkoutsLoadingMore] = useState(false);
   const [currentWorkout, setCurrentWorkout] = useState(null);
   const [currentWorkoutStatus, setCurrentWorkoutStatus] = useState('idle');
   const [currentWorkoutError, setCurrentWorkoutError] = useState(null);
@@ -59,18 +68,40 @@ export function AppProvider({ children }) {
   useEffect(() => () => clearTimeout(toastTimer.current), []);
 
   // ---------- workouts list fetch ----------
+  // Resets to the first page. Used on mount and on retry. Load-more is handled
+  // separately by loadMoreWorkouts, which appends instead of replacing.
   const fetchWorkouts = useCallback(async () => {
     setWorkoutsStatus('loading');
     setWorkoutsError(null);
-    const { data, error } = await api.get('/workouts');
+    const { data, error } = await api.get(`/workouts?limit=${PAGE_SIZE}&offset=0`);
     if (error) {
       setWorkoutsError(error);
       setWorkoutsStatus('error');
       return;
     }
-    setWorkouts(data || []);
+    setWorkouts(data?.data || []);
+    setWorkoutsHasNext(!!data?.pagination?.has_next);
+    setWorkoutsTotal(data?.pagination?.total ?? 0);
     setWorkoutsStatus('ready');
   }, []);
+
+  // Append the next page. Offset is the current loaded count. On error the
+  // already-loaded list stays put and we just flash a toast.
+  const loadMoreWorkouts = useCallback(async () => {
+    setWorkoutsLoadingMore(true);
+    const { data, error } = await api.get(
+      `/workouts?limit=${PAGE_SIZE}&offset=${workouts.length}`
+    );
+    if (error) {
+      flash(error.message || 'Could not load more workouts.', 'alert');
+      setWorkoutsLoadingMore(false);
+      return;
+    }
+    setWorkouts((ws) => [...ws, ...(data?.data || [])]);
+    setWorkoutsHasNext(!!data?.pagination?.has_next);
+    setWorkoutsTotal(data?.pagination?.total ?? 0);
+    setWorkoutsLoadingMore(false);
+  }, [workouts.length]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -78,18 +109,38 @@ export function AppProvider({ children }) {
   }, [fetchWorkouts]);
 
   // ---------- exercise-types catalog fetch ----------
+  // Resets to the first page (mount + retry). loadMoreTypes appends.
   const fetchTypes = useCallback(async () => {
     setTypesStatus('loading');
     setTypesError(null);
-    const { data, error } = await api.get('/exercise-types');
+    const { data, error } = await api.get(`/exercise-types?limit=${PAGE_SIZE}&offset=0`);
     if (error) {
       setTypesError(error);
       setTypesStatus('error');
       return;
     }
-    setTypes(data || []);
+    setTypes(data?.data || []);
+    setTypesHasNext(!!data?.pagination?.has_next);
+    setTypesTotal(data?.pagination?.total ?? 0);
     setTypesStatus('ready');
   }, []);
+
+  // Append the next page of the catalog. Offset = current loaded count.
+  const loadMoreTypes = useCallback(async () => {
+    setTypesLoadingMore(true);
+    const { data, error } = await api.get(
+      `/exercise-types?limit=${PAGE_SIZE}&offset=${types.length}`
+    );
+    if (error) {
+      flash(error.message || 'Could not load more movements.', 'alert');
+      setTypesLoadingMore(false);
+      return;
+    }
+    setTypes((ts) => [...ts, ...(data?.data || [])]);
+    setTypesHasNext(!!data?.pagination?.has_next);
+    setTypesTotal(data?.pagination?.total ?? 0);
+    setTypesLoadingMore(false);
+  }, [types.length]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -155,6 +206,7 @@ export function AppProvider({ children }) {
       muscle_groups: [],
     };
     setWorkouts((ws) => [shallow, ...ws]);
+    setWorkoutsTotal((n) => n + 1);
     setSheet(null);
     flash('Workout started', 'check');
     return { id: created.id };
@@ -187,6 +239,7 @@ export function AppProvider({ children }) {
       return { error };
     }
     setWorkouts((ws) => ws.filter((w) => w.id !== id));
+    setWorkoutsTotal((n) => Math.max(0, n - 1));
     setCurrentWorkout((cw) => (cw && cw.id === id ? null : cw));
     flash('Workout deleted', 'trash');
     return { error: null };
@@ -609,14 +662,19 @@ export function AppProvider({ children }) {
     const { data: created, error } = await api.post('/exercise-types', data);
     if (error) {
       if (error.status === 409) {
-        // Catalog likely stale; pull the latest so the dup-affordance can
-        // resolve to a real type object.
-        const { data: latest } = await api.get('/exercise-types');
-        if (latest) setTypes(latest);
+        // Catalog likely stale; pull the latest (first page) so the
+        // dup-affordance can resolve to a real type object.
+        const { data: latest } = await api.get(`/exercise-types?limit=${PAGE_SIZE}&offset=0`);
+        if (latest?.data) {
+          setTypes(latest.data);
+          setTypesHasNext(!!latest.pagination?.has_next);
+          setTypesTotal(latest.pagination?.total ?? 0);
+        }
       }
       return { error };
     }
     setTypes((ts) => [...ts, created]);
+    setTypesTotal((n) => n + 1);
     addExercise(workoutId, created);
     return { type: created };
   };
@@ -662,6 +720,9 @@ export function AppProvider({ children }) {
     workouts,
     workoutsStatus,
     workoutsError,
+    workoutsTotal,
+    workoutsHasNext,
+    workoutsLoadingMore,
     currentWorkout,
     currentWorkoutStatus,
     currentWorkoutError,
@@ -669,6 +730,9 @@ export function AppProvider({ children }) {
     types,
     typesStatus,
     typesError,
+    typesTotal,
+    typesHasNext,
+    typesLoadingMore,
     typeById,
     // ui state
     sheet,
@@ -682,8 +746,10 @@ export function AppProvider({ children }) {
     closeConfirm,
     // data actions
     fetchWorkouts,
+    loadMoreWorkouts,
     fetchWorkout,
     fetchTypes,
+    loadMoreTypes,
     clearCurrentWorkout,
     // workout actions
     createWorkout,
